@@ -10,8 +10,10 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVR
 import utils
+from sklearn.model_selection import train_test_split
 
 class Model:
     def __init__ (self, file_path, model_type):
@@ -20,6 +22,7 @@ class Model:
         self.model_type = model_type
         self.X = None
         self.y = None
+        self.model = None
     
     def load_data(self):
         self.data = pd.read_csv(self.file_path)
@@ -40,7 +43,12 @@ class Model:
     
     def initialize_model(self):
         if self.model_type == "rf":
-            self.model = RandomForestRegressor(n_estimators=100, random_state=42)
+            self.model = RandomForestRegressor(n_estimators=100, 
+                                               max_depth=10, 
+                                               max_features='sqrt', 
+                                               min_samples_leaf=1,
+                                               min_samples_split=2,
+                                               random_state=42)
         elif self.model_type == "svm":
             self.model = SVR(kernel='rbf') # LOOK INTO WHICH KERNEL TO USE
         elif self.model_type == "lr":
@@ -49,6 +57,9 @@ class Model:
             raise ValueError("Please enter a valid model type ('rf', 'svm', or 'lr')")
     
     def rf_feature_importance(self):
+        # Fit the model
+        self.model.fit(self.X, self.y)
+
         # Get feature importances from the Random Forest model
         importances = self.model.feature_importances_
 
@@ -67,8 +78,8 @@ class Model:
     
     def loocv(self):
         # Perform Leave-One-Out Cross-Validation
-        mse = utils.perform_loocv(self.X, self.y, self.model)
-        print(f"MSE: {round(mse,4)}")
+        rmse = utils.perform_loocv(self.X, self.y, self.model)
+        print(f"RMSE: {round(rmse,4)}")
 
     def run(self):
         self.load_data()
@@ -83,7 +94,7 @@ class Model:
             self.rf_feature_importance()
     
 def main():
-    file_path = "../data/processed/ChEMBL-alpha2-bioactivities-274-bulked.csv"
+    file_path = "data/processed/ChEMBL-alpha2-bioactivities-274-bulked.csv"
 
     # Linear regression
     lr_model = Model(file_path, "lr")
@@ -96,6 +107,37 @@ def main():
     # SVM
     svm_model = Model(file_path, "svm")
     svm_model.run()
+
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(svm_model.X, svm_model.y, test_size=0.2, random_state=42)
+
+    # Hyperparameter tuning for SVM
+    param_grid = {
+        'C': [0.1, 1, 10, 100],
+        'gamma': [1, 0.1, 0.01, 0.001],
+        'kernel': ['rbf', 'linear']
+    }
+
+    grid = GridSearchCV(SVR(), param_grid, refit=True, verbose=2, cv=5)
+    grid.fit(X_train, y_train)
+
+    print("Best parameters found for SVM:")
+    print(grid.best_params_)
+
+    # Evaluate the best model on the test set
+    best_svm_model = grid.best_estimator_
+    y_pred = best_svm_model.predict(X_test)
+    test_rmse = np.sqrt(np.mean((y_test - y_pred) ** 2))
+    print(f"Test RMSE: {round(test_rmse, 4)}")
+
+    # Evaluate the vanilla SVR (rbf kernel) model on the test set
+    vanilla_svr_model = SVR(kernel='rbf')
+    vanilla_svr_model.fit(X_train, y_train)
+    y_pred_vanilla = vanilla_svr_model.predict(X_test)
+    test_rmse = np.sqrt(np.mean((y_test - y_pred_vanilla) ** 2))
+    print(f"Base RMSE: {round(test_rmse, 4)}")
+
+
 
 if __name__ == "__main__":
     main()

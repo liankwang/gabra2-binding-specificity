@@ -9,8 +9,10 @@ from sklearn.model_selection import LeaveOneOut, cross_val_score
 def perform_loocv(X, y, model):
     loo = LeaveOneOut()
     scores = cross_val_score(model, X, y, cv=loo, scoring='neg_mean_squared_error')
+    mse =-scores.mean()
+    rmse = np.sqrt(mse)
     
-    return -scores.mean()
+    return rmse
 
 def custom_loocv(X, y, model):
     y_true = []
