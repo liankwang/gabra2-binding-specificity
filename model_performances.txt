@@ -1,0 +1,32 @@
+BATCH SIZE 8
+Weights for each batch:
+mpnn(dv, de, dh) -> relu -> gcnconv(dh, dh) -> relu -> globalmeanpool -> dropout(.5) -> lin: auroc 73.75%
+
+mpnn(dv, de, dh) -> relu -> gcnconv(dh, 1) -> relu -> globalmeanpool -> dropout(.5): auroc 85%
+
+gcnconv(dv, dh) -> relu -> gcnconv(dh, 1) -> relu -> globalmeanpool -> dropout(.5): auroc no predicted pos values
+
+Weights universally:
+mpnn(dv, de, dh) -> relu -> gcnconv(dh, 1) -> relu -> globalmeanpool -> dropout(.5): auroc 77.5%
+gcnconv(dv, dh) -> relu -> gcnconv(dh, 1) -> relu -> gmp -> dropout(.5): auroc 62.75
+gcnconv(dv, dh) -> relu -> gcnconv(dh, dh) -> relu -> gmp -> dropout(.5) -> lin(dh, 1): auroc 86.25%
+gcnconv(dv, dh) -> relu -> dropout(.3) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 92.25
+gcnconv(dv, dh) -> relu -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 98.5%
+
+scheduler(gamma=0.1): gcnconv(dv, dh) -> relu -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 82.75%
+scheduler(gamma=0.01): gcnconv(dv, dh) -> relu -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 82.25%
+
+
+-----
+BATCH SIZE 16
+gcnconv(dv, dh) -> relu -> gcnconv(dh, dh) -> relu -> gmp -> dropout(.5) -> lin(dh, 1): auroc 85%
+
+----
+BATCH SIZE 4
+gcnconv(dv, dh) -> relu -> gcnconv(dh, dh) -> relu -> gmp -> dropout(.5) -> lin(dh, 1): auroc 90.25%
+gcnconv(dv, dh) -> relu -> dropout(.5) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 92%
+mpnn(dv, de, dh) -> relu -> dropout(.3) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 78.25%
+gcnconv(dv, dh) -> relu -> dropout(.3) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 97%
+- train loss decreases but spiky. val loss initial bump then spiky decrease with larger spikes at end.
+gcnconv(dv, dh) -> relu -> dropout(.2) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 97.25%
+gcnconv(dv, dh) -> relu -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 98%

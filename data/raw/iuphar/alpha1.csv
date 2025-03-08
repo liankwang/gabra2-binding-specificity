@@ -1,0 +1,32 @@
+Compound,ChEMBL_ID,Species,Activity,Value,Unit
+triazolam,CHEMBL646,Hs,Positive,9.0,pKd
+flumazenil,CHEMBL407,Hs,Antagonist,9.1,pKi
+triazolam,CHEMBL646,Hs,Positive,9.1,pKi
+clonazepam,CHEMBL452,Hs,Positive,8.9,pKi
+flunitrazepam,CHEMBL13280,Hs,Positive,8.3,pKi
+diazepam,CHEMBL12,Hs,Positive,7.8,pKi
+zolpidem,CHEMBL911,Hs,Positive,7.4-7.7,pKi
+alprazolam,CHEMBL661,Hs,Positive,7.4,pEC50
+ganaxolone,CHEMBL1568698,Hs,Potentiation,6.6,pEC50
+Zn2+,-,Hs,Inhibition,-,-  
+α3IA,CHEMBL413325,Hs,Inverse agonist,-,-  
+α5IA,CHEMBL306422,Hs,Inverse agonist,-,-  
+5α-pregnan-3α-ol-20-one,CHEMBL207538,Hs,Potentiation,-,-  
+bretazenil,CHEMBL366947,Hs,Full agonist,-,-  
+DMCM,-,Hs,Inverse agonist,-,-  
+indiplon,CHEMBL262075,Hs,Full agonist,-,-  
+L838417,CHEMBL373250,Hs,Antagonist,-,-  
+MRK016,CHEMBL363211,Hs,Inverse agonist,-,-  
+ocinaplon,CHEMBL2105199,Hs,Full agonist,-,-  
+Ro15-4513,CHEMBL6597,Hs,Inverse agonist,-,-  
+Ro19-4603,CHEMBL269366,Hs,Inverse agonist,-,-  
+RO4938581,CHEMBL1080588,Hs,Inverse agonist,-,-  
+tetrahydrodeoxycorticosterone,CHEMBL1256760,Hs,Potentiation,-,-  
+TP003,-,Hs,Antagonist,-,-  
+TPA023,CHEMBL200177,Hs,Antagonist,-,-  
+ZK93426,CHEMBL1271047,Hs,Antagonist,-,-  
+[3H]flunitrazepam,CHEMBL13280,Hs,Positive,-,-  
+[3H]zolpidem,CHEMBL911,Hs,Positive,-,-  
+[3H]CGS8216,-,Hs,Mixed,-,-  
+[11C]flumazenil,CHEMBL407,Hs,Antagonist,-,-  
+[18F]fluoroethylflumazenil,-,Hs,-,-,-  

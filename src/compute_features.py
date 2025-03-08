@@ -7,19 +7,18 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import Descriptors
 
 class FeatureExtractor:
-    def __init__(self, file_path):
-        self.file_path = file_path
-        self.data = None
+    def __init__(self, data):
+        self.data = data
     
-    def load_data(self):
-        self.data = pd.read_csv(self.file_path)
-        self.data = self.data.dropna(subset=['Smiles', 'pChEMBL Value'])
-        print("Data shape: ", self.data.shape)
+    # def load_data(self):
+    #     self.data = pd.read_csv(self.file_path)
+    #     #self.data = self.data.dropna(subset=['Smiles', 'pChEMBL Value'])
+    #     print("Data shape: ", self.data.shape)
         
-        nan_rows = self.data[self.data.isna().any(axis=1)]
-        if not nan_rows.empty:
-            print("Rows with NaN values:")
-            print(nan_rows)
+    #     nan_rows = self.data[self.data.isna().any(axis=1)]
+    #     if not nan_rows.empty:
+    #         print("Rows with NaN values:")
+    #         print(nan_rows)
 
     def calculate_rdkit_descriptors(self, smiles):
         mol = Chem.MolFromSmiles(smiles)
@@ -29,6 +28,7 @@ class FeatureExtractor:
                 descriptors.append(func(mol))
             return descriptors
         else:
+            print('Calculating RDKit descriptors: NaN molecule!')
             return [np.nan] * len(Descriptors.descList)
 
     def calculate_fingerprints(self, smiles, radius=2, bit_length=1024):
@@ -37,6 +37,7 @@ class FeatureExtractor:
             fingerprint = AllChem.GetMorganFingerprintAsBitVect(mol, radius=radius, nBits=bit_length)
             return np.array(fingerprint)
         else:
+            print('Calculating fingerprints: NaN molecule!')
             return np.zeros(bit_length)
 
     def combine_features(self):
@@ -55,12 +56,12 @@ class FeatureExtractor:
         return new_data
 
     def run(self):
-        self.load_data()
         return self.combine_features()
 
 if __name__ == "__main__":
     file_path = "../data/processed/ChEMBL-alpha2-bioactivities-274.csv"
-    extractor = FeatureExtractor(file_path)
+    data = pd.read_csv(file_path)
+    extractor = FeatureExtractor(data)
     new_data = extractor.run()
     print(new_data.shape)
     new_data.to_csv("../data/processed/ChEMBL-alpha2-bioactivities-274-bulked.csv", index=False)

@@ -1,3 +1,6 @@
 *.Rproj
 __pycache__/
 .ipynb_checkpoints/
+src/misc.py
+modelperformance.txt
+dimenet/

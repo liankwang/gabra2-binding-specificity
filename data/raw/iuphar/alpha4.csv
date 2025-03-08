@@ -1,0 +1,12 @@
+Compound,ChEMBL_ID,Species,Activity,Value,Unit
+flumazenil, CHEMBL407 ,Rn,Positive,7.0,pKi
+cenobamate,CHEMBL3989949,Hs,Positive,4.4,pEC50
+Zn2+,-,Hs,Inhibition,-,-
+5α-pregnan-3α-ol-20-one, CHEMBL207538 ,Hs,Potentiation,-,-
+bretazenil, CHEMBL366947 ,Hs,Full agonist,-,-
+Ro15-4513, CHEMBL6597 ,Hs,Full agonist,-,-
+tetrahydrodeoxycorticosterone, CHEMBL1256760 ,Hs,Potentiation,-,-
+[3H]Ro154513,CHEMBL6597,Hs,Full agonist,-,-
+[3H]CGS8216,-,Hs,Mixed,-,-
+[11C]flumazenil, CHEMBL407, Hs,Partial agonist,-,-
+[18F]fluoroethylflumazenil,-,Hs,-,-,-
