@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
+import argparse
+
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -139,7 +141,6 @@ class SimpleGraphEncoder(nn.Module):
         x = self.lin(x)
         return x
 
-
 class GraphEncoder(nn.Module):
     def __init__(self, d_v, d_e, d_h, output_dim):
         print("Initializing GraphEncoder model with dimensions (dv, de, dh):", d_v, d_e, d_h)
@@ -156,6 +157,7 @@ class GraphEncoder(nn.Module):
         x = F.relu(x)
         x = self.conv1(x, edge_index, edge_attr)
         x = F.relu(x)
+
         # Readout layer: combines information from each node to give a graph-level representation
         x = global_mean_pool(x, data.batch)
 
@@ -178,70 +180,54 @@ def dataset_to_loaders(dataset, batch_size):
 
     return train_loader, val_loader, test_loader
 
-class EarlyStopping:
-    def __init__(self, patience=10, verbose=False, delta=0, path='checkpoint.pth'):
-        """
-        Args:
-            patience (int): Number of epochs to wait for improvement before stopping
-            verbose (bool): Print status messages
-            delta (float): Minimum change to qualify as an improvement
-            path (str): Path to save the model checkpoint
-        """
-        self.patience = patience
-        self.verbose = verbose
-        self.delta = delta
-        self.path = path
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-        self.best_model_wts = None
 
-    def __call__(self, val_loss, model):
-        """
-        Call this function after each validation epoch to check if training should stop
-        """
-        score = -val_loss  # We want to minimize validation loss, so we negate it
+def train(dataset, output_path, train_loader, val_loader):
+    # Training hyperparameters
+    learning_rate = 1e-3
+    num_epochs = 150
 
-        if self.best_score is None:
-            self.best_score = score
-            self.save_checkpoint(val_loss, model)
-        elif score < self.best_score + self.delta:
-            self.counter += 1
-            if self.verbose:
-                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = score
-            self.save_checkpoint(val_loss, model)
-            self.counter = 0
+    # Compute positive samples weight
+    labels = dataset.labels
+    pos_weight = (labels == 0).float().sum() / (labels == 1).float().sum()
+    print(f'Positive sample weight: {pos_weight}')
 
-    def save_checkpoint(self, val_loss, model):
-        '''Saves the model when validation loss decreases'''
-        if self.verbose:
-            print(f'Validation loss decreased ({self.best_score:.6f} --> {val_loss:.6f}).  Saving model...')
-        torch.save(model.state_dict(), self.path)
-        self.best_model_wts = model.state_dict()
+    # Initialize model, optimizer, and loss function
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    model = GraphEncoder(d_v, d_e, d_h, output_dim)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    #scheduler = StepLR(optimizer, step_size=10, gamma=0.01)
 
-def train(model, train_loader, optimizer, scheduler, criterion, num_epochs, val_loader=None, with_val=False):
+    # Training loop
+    model, train_losses, val_losses = training_loop(model, 
+                                            train_loader, 
+                                            optimizer,
+                                            criterion, 
+                                            num_epochs, 
+                                            val_loader)
+
+    # Plotting the training and validation losses on the same plot
+    plt.plot(train_losses, label='Training Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training and Validation Loss Over Epochs')
+    plt.legend()
+    plt.savefig(f'{output_path}/loss_curve.png')
+    plt.show()
+
+    return model
+
+def training_loop(model, train_loader, optimizer, criterion, num_epochs, val_loader=None):
     model.train()
     train_losses = []
     val_losses = []
-    early_stopping = EarlyStopping(patience=10, verbose=True, path='../output/checkpoint.pth')
 
     for epoch in range(num_epochs):
         total_train_loss = 0
         for batch in train_loader:
-            # Compute weights for positive class
-            if (batch.y == 1).float().sum() == 0 or (batch.y == 0).float().sum() == 0:
-                pos_weight = torch.tensor([1.0])
-            else:
-                pos_weight = (batch.y == 0).float().sum() / (batch.y == 1).float().sum()
-
             # Train
             optimizer.zero_grad()
             out = model(batch)
-            #criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
             loss = criterion(out, batch.y.view(-1,1))
             loss.backward()
             optimizer.step()
@@ -251,7 +237,7 @@ def train(model, train_loader, optimizer, scheduler, criterion, num_epochs, val_
         print(f'Epoch {epoch+1}/{num_epochs}, Train Loss: {ave_train_loss:.4f}')
         train_losses.append(ave_train_loss)
     
-        if with_val:
+        if val_loader is not None:
             model.eval()
             with torch.no_grad():
                 total_val_loss = 0
@@ -263,12 +249,6 @@ def train(model, train_loader, optimizer, scheduler, criterion, num_epochs, val_
             val_losses.append(ave_val_loss)
             print(f'Validation Loss: {ave_val_loss:.4f}')
         
-        # early_stopping(ave_val_loss, model)
-        # if early_stopping.early_stop:
-        #     print("Early stopping")
-        #     break
-        
-        #scheduler.step()
 
     return model, train_losses, val_losses
 
@@ -385,68 +365,72 @@ def evaluate(model, test_loader):
     plt.savefig('../output/mpnn_score_dist.png')
     plt.show()
 
+def predict(model, test_loader):
+    model.eval()
+    preds = []
+    probs = []
 
-if __name__ == "__main__":
-    # filepath = '../data/processed/iuphar_labeled2.csv'
-    # df = pd.read_csv(filepath)
-    # smiles_list = df['Smiles'].tolist()
-    # labels = torch.tensor(df['Interaction'].tolist(), dtype=torch.long)
+    with torch.no_grad():
+        for batch in test_loader:
+            out = model(batch)
+            prob = torch.sigmoid(out).numpy().flatten()
+            probs.append(prob)
+    probs = np.concatenate(probs)
+    preds = (probs > 0.5).astype(int)
 
-    # # Calculate weight for positive samples
-    # pos_weight = (labels == 0).float().sum() / (labels == 1).float().sum()
-    # print(f'Positive sample weight: {pos_weight}')
+    return probs, preds
 
-    # # Create dataset of mol objects
-    # mols = [Chem.MolFromSmiles(smiles) for smiles in smiles_list]
-    # dataset = MolGraphDataset(mols, labels)
 
-    dataset = torch.load('../data/processed/iuphar_labeled2.pt')
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--checkpoint_path', type=str)
+    parser.add_argument('--input_path', type=str, required=True)
+    parser.add_argument('--output_path', type=str, required=True)
+    parser.add_argument('--save_path', type=str)
+    args = parser.parse_args()
+
+    # Load Pytorch dataset
+    dataset = torch.load(args.input_path)
     print(f'Loaded dataset with {len(dataset)} samples.')
 
-    # Calculate weight for positive samples
-    labels = dataset.labels
-    # Calculate weight for positive samples
-    pos_weight = (labels == 0).float().sum() / (labels == 1).float().sum()
-    print(f'Positive sample weight: {pos_weight}')
-
-    # Training hyperparameters
     d_v = dataset[0].x.shape[1]
     d_e = dataset[0].edge_attr.shape[1]
     d_h = 32
     output_dim = 1
-    learning_rate = 1e-3
-    num_epochs = 150
-    batch_size = 16
 
-    # Split dataset and convert to PyG DataLoaders
-    train_loader, val_loader, test_loader = dataset_to_loaders(dataset, batch_size)
+    # Either load model or train new model
+    batch_size = 8
+    if args.checkpoint_path:
+        model = GraphEncoder(d_v, d_e, d_h, output_dim=1)
+        model.load_state_dict(torch.load(args.checkpoint_path))
+        print(f'Loaded model from {args.checkpoint_path}')
 
-    # Initialize model, optimizer, and loss function
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    model = GraphEncoder(d_v, d_e, d_h, output_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = StepLR(optimizer, step_size=10, gamma=0.01)
+        # Make predictions on test set
+        print("Making predictions on test set...")
+        test_loader = DataLoader(dataset, batch_size=batch_size)
+        probs, preds = predict(model, test_loader)
 
-    # Training loop
-    model, train_losses, val_losses = train(model, 
-                                            train_loader, 
-                                            optimizer, 
-                                            scheduler,
-                                            criterion, 
-                                            num_epochs, 
-                                            val_loader, with_val=True)
+        # Save predictions
+        df = pd.DataFrame({'SMILES':dataset.smiles, 'Probability': probs, 'Prediction': preds})
+        df.to_csv(f'{args.output_path}/predictions.csv', index=False)
+        print(f'Saved predictions to {args.output_path}/predictions.csv')
 
-    # Plotting the training and validation losses on the same plot
-    plt.plot(train_losses, label='Training Loss')
-    plt.plot(val_losses, label='Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Training and Validation Loss Over Epochs')
-    plt.legend()
-    plt.savefig('../output/mpnn_training_curve.png')
-    plt.show()
+    else:
+        # Split dataset and convert to PyG DataLoaders
+        train_loader, val_loader, test_loader = dataset_to_loaders(dataset, batch_size=batch_size)
 
-    # Evaluating the model
-    start_time = time.time()
-    evaluate(model, val_loader)
-    print(f'Evaluation time: {time.time() - start_time:.2f} seconds')
+        # Calculate weight for positive samples
+        labels = dataset.labels
+        pos_weight = (labels == 0).float().sum() / (labels == 1).float().sum()
+        print(f'Positive sample weight: {pos_weight}')
+
+        # Train and evaluate model
+        model = train(dataset, args.output_path, train_loader, val_loader)
+        evaluate(model, test_loader)
+
+        # Save model checkpoint
+        if args.save_path:
+            torch.save(model.state_dict(), f'{args.save_path}/model.pt')
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import argparse
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -146,7 +147,7 @@ def get_bond_angle(conf, mol, i, j):
     theta = np.arccos(cos_theta) * (180.0 / np.pi)
     return theta
 
-def mol_to_graph(mol, label):
+def mol_to_graph(mol, label=None):
     """Convert an RDKit molecule into a PyTorch Geometric graph object. 
     Calls atom and bond featurizers.
     """
@@ -157,16 +158,16 @@ def mol_to_graph(mol, label):
     Chem.SanitizeMol(mol)
     
     # Get 3D coordinates
-    num_fails = 0
-    conf = None
-    if mol.GetNumConformers() == 0:
-        success = AllChem.EmbedMolecule(mol, randomSeed=42)
-        if success != 0:
-            print(f"Failed to generate 3D coordinates: Mol {Chem.MolToSmiles(mol)}.")
-            num_fails += 1
-        else:
-            #print(f"Generated 3D coordinates for Mol {Chem.MolToSmiles(mol)}.")
-            conf = mol.GetConformer()
+    # num_fails = 0
+    # conf = None
+    # if mol.GetNumConformers() == 0:
+    #     success = AllChem.EmbedMolecule(mol, randomSeed=42)
+    #     if success != 0:
+    #         print(f"Failed to generate 3D coordinates: Mol {Chem.MolToSmiles(mol)}.")
+    #         num_fails += 1
+    #     else:
+    #         #print(f"Generated 3D coordinates for Mol {Chem.MolToSmiles(mol)}.")
+    #         conf = mol.GetConformer()
 
     # Compute atom features
     atom_features = []
@@ -184,10 +185,10 @@ def mol_to_graph(mol, label):
         edge_index.append((j, i))  # Undirected Graph
 
         # Add distance feature
-        dist = get_distance(conf, i, j)
+        # dist = get_distance(conf, i, j)
 
         # Add bond angle feature
-        bond_angle = get_bond_angle(conf, mol, i, j)
+        # bond_angle = get_bond_angle(conf, mol, i, j)
 
         # Add other features
         all_feats = np.concatenate([get_bond_features(bond)])
@@ -196,23 +197,55 @@ def mol_to_graph(mol, label):
     edge_index = torch.tensor(np.array(edge_index), dtype=torch.long).t().contiguous()
     edge_attr = torch.tensor(np.array(edge_attr), dtype=torch.float)
 
-    y = torch.tensor([label], dtype=torch.float)
-
-    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
-    
+    if label is not None:
+        y = torch.tensor([label], dtype=torch.float)
+        return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
+    else:
+        return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
 
 class MolGraphDataset(InMemoryDataset):
     """ Creates a PyTorch Geometric dataset from a list of RDKit molecules and labels. """
-    def __init__(self, mols, labels, transform=None, pre_transform=None):
+    def __init__(self, mols, smiles_list, labels=None, transform=None, pre_transform=None):
         self.mols = mols
-        self.labels = labels
+        self.smiles = smiles_list
         super(MolGraphDataset, self).__init__('.', transform, pre_transform)
-        data_list = [mol_to_graph(mol, label) for mol, label in zip(mols, labels)]
+
+        if labels is not None:
+            self.labels = labels
+            data_list = [mol_to_graph(mol, label) for mol, label in zip(mols, labels)]
+        else:
+            data_list = [mol_to_graph(mol) for mol in mols]
+            
+        
         self.data, self.slices = self.collate(data_list)
+
 
     def __len__(self):
         return len(self.mols)
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path', type=str, required=True)
+    parser.add_argument('--output_path', type=str, required=True)
+    parser.add_argument('--no_labels', action='store_true')
+    args = parser.parse_args()
+    
+    df = pd.read_csv(args.data_path)
+    smiles_list = df['Smiles'].tolist()
+
+    # Create Mol objects from SMILES strings
+    mols = [Chem.MolFromSmiles(smiles) for smiles in smiles_list]
+
+    if 'Interaction' in df.columns and not args.no_labels:
+        labels = torch.tensor(df['Interaction'].tolist(), dtype=torch.long)
+        dataset = MolGraphDataset(mols, smiles_list, labels)
+    else:
+        print("Creating dataset with no true labels.")
+        dataset = MolGraphDataset(mols, smiles_list)
+
+    torch.save(dataset, f"{args.output_path}.pt")
+    print(f"Saved dataset to {args.output_path}.pt")
 
 
 if __name__ == '__main__':
@@ -220,13 +253,4 @@ if __name__ == '__main__':
     torch.manual_seed(random_seed)
     np.random.seed(random_seed)
 
-    filepath = '../data/processed/iuphar_labeled2.csv'
-    df = pd.read_csv(filepath)
-    smiles_list = df['Smiles'].tolist()
-    labels = torch.tensor(df['Interaction'].tolist(), dtype=torch.long)
-
-    # Create dataset of mol objects
-    mols = [Chem.MolFromSmiles(smiles) for smiles in smiles_list]
-    dataset = MolGraphDataset(mols, labels)
-
-    torch.save(dataset, '../data/processed/iuphar_labeled2.pt')
+    main()
