@@ -1,0 +1,63 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 Helvetica-Bold;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid1\'01\uc0\u8259 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
+\margl1440\margr1440\vieww12560\viewh9420\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 \'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97SimpleGraphEncoder (GCN)\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\
+*all on test data
+\f1\b \
+Batch size 8
+\f0\b0 \
+Weights for each batch:\
+mpnn(dv, de, dh) -> relu -> gcnconv(dh, dh) -> relu -> globalmeanpool -> dropout(.5) -> lin: auroc 73.75%\
+\
+mpnn(dv, de, dh) -> relu -> gcnconv(dh, 1) -> relu -> globalmeanpool -> dropout(.5): auroc 85%\
+\
+gcnconv(dv, dh) -> relu -> gcnconv(dh, 1) -> relu -> globalmeanpool -> dropout(.5): auroc no predicted pos values\
+\
+Weights universally:\
+mpnn(dv, de, dh) -> relu -> gcnconv(dh, 1) -> relu -> globalmeanpool -> dropout(.5): auroc 77.5%\
+gcnconv(dv, dh) -> relu -> gcnconv(dh, 1) -> relu -> gmp -> dropout(.5): auroc 62.75\
+gcnconv(dv, dh) -> relu -> gcnconv(dh, dh) -> relu -> gmp -> dropout(.5) -> lin(dh, 1): auroc 86.25%\
+gcnconv(dv, dh) -> relu -> dropout(.3) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 92.25\
+gcnconv(dv, dh) -> relu -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 98.5%\
+\
+scheduler(gamma=0.1): gcnconv(dv, dh) -> relu -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 82.75%\
+scheduler(gamma=0.01): gcnconv(dv, dh) -> relu -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 82.25%\
+\
+-----\
+
+\f1\b Batch size 16
+\f0\b0 \
+gcnconv(dv, dh) -> relu -> gcnconv(dh, dh) -> relu -> gmp -> dropout(.5) -> lin(dh, 1): auroc 85%\
+\
+----\
+
+\f1\b Batch size 4
+\f0\b0 \
+gcnconv(dv, dh) -> relu -> gcnconv(dh, dh) -> relu -> gmp -> dropout(.5) -> lin(dh, 1): auroc 90.25%\
+gcnconv(dv, dh) -> relu -> dropout(.5) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 92%\
+mpnn(dv, de, dh) -> relu -> dropout(.3) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 78.25%\
+gcnconv(dv, dh) -> relu -> dropout(.3) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 97%\
+- train loss decreases but spiky. val loss initial bump then spiky decrease with larger spikes at end.\
+gcnconv(dv, dh) -> relu -> dropout(.2) -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 97.25%\
+gcnconv(dv, dh) -> relu -> gcnconv(dh,dh) -> gmp, lin(dh,1): auroc 98%\
+\
+\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97GraphEncoder with EdgeGCN\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\
+Testing EdgeGCN layer, different message functions\
+Batch size 4, conv1 + relu + gmp + lin. All on val set\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\li720\fi-720\pardirnatural\partightenfactor0
+\ls1\ilvl0\cf0 {\listtext	\uc0\u8259 	}forward: lin(x); message: lin(edge_attr) -> x_j + edge_features. auroc 76.5%\
+{\listtext	\uc0\u8259 	}forward: lin(x); message: lin(edge_attr) -> return lin(cat([x_j,edge_features])). auroc 78.61%\
+{\listtext	\uc0\u8259 	}forward: lin(x); message: return lin(cat[x_j, edge_attr]). auroc 82.89%\
+{\listtext	\uc0\u8259 	}forward: x; message: return lin(cat[x_j, edge_attr]). auroc 70.61%\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf0 \
+GCN \
+\
+\
+}
