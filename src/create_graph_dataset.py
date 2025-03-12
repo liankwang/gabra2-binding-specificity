@@ -3,9 +3,20 @@ import pandas as pd
 import argparse
 
 from rdkit import Chem
-from rdkit.Chem import AllChem
 import torch
 from torch_geometric.data import Data, InMemoryDataset
+
+"""
+This script creates a PyTorch Geometric dataset from a list of SMILES strings and (optionally) labels.
+Arguments:
+--data_path: Path to a CSV file with columns 'Smiles' and 'Interaction' (if labels are available)
+--output_path: Path to save the PyTorch Geometric dataset. The file will be saved as "{output_path}.pt"
+--no_labels (optional): If this flag is set, the dataset will be created without labels (even if it is available in the CSV file)
+"""
+
+random_seed = 42
+torch.manual_seed(random_seed)
+np.random.seed(random_seed)
 
 def get_atom_features(atom):
     """
@@ -249,8 +260,4 @@ def main():
 
 
 if __name__ == '__main__':
-    random_seed = 42
-    torch.manual_seed(random_seed)
-    np.random.seed(random_seed)
-
     main()

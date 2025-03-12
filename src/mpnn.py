@@ -1,99 +1,40 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import time
 import argparse
 
-
-from rdkit import Chem
-from rdkit.Chem import AllChem
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import MessagePassing, GCNConv, global_mean_pool, SAGEConv, GraphConv,GINEConv
+from torch_geometric.nn import MessagePassing, GCNConv, global_mean_pool
 from torch_geometric.loader import DataLoader
 from torch.utils.data import Subset
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, precision_score, recall_score, f1_score, roc_curve, auc, precision_recall_curve
-from torch_geometric.utils import add_self_loops, to_undirected, is_undirected
-from torch.optim.lr_scheduler import StepLR
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, f1_score, roc_curve, auc, precision_recall_curve
+from torch_geometric.utils import add_self_loops
+#from torch.optim.lr_scheduler import StepLR
 
 from create_graph_dataset import MolGraphDataset
 
+"""
+This script trains, evaluates, and makes predictions using a Graph Neural Network model on a molecular dataset.
+The dataset is created using the MolGraphDataset class from create_graph_dataset.py, which converts RDKit molecules
+to PyTorch Geometric Data objects.
+
+Arguments:
+--input_path: Path to the PyTorch dataset file created by create_graph_dataset.py (should end in .pt)
+--output_path: Folder path to save the model, loss curve, and predictions (if applicable)
+--save_path (optional): Path to save the trained model checkpoint
+--checkpoint_path (optional): Path to load a trained model checkpoint for predictions (should end in .pt)
+"""
 
 random_seed = 42
 torch.manual_seed(random_seed)
 np.random.seed(random_seed)
 
 
-class MPNNLayer(MessagePassing): # NOT IN USE
-    """
-    NOT CURRENTLY IN USE!!!!!!
-
-    Message Passing Neural Network Layer.
-    Args:
-        d_v (int): Node feature dimensions.
-        d_e (int): Edge feature dimensions.
-        d_h (int): Hidden message dimensions.
-    """
-    def __init__(self, d_v, d_e, d_h):
-        super(MPNNLayer, self).__init__(aggr='mean')
-        print("Initializing MPNN layer with dimensions:", d_v, d_e, d_h)
-        # self.node_transform = nn.Linear(d_v, d_h)
-        # self.edge_transform = nn.Linear(d_e, d_h)
-
-        self.W_i = nn.Linear(d_v + d_e, d_h) # for computing messages
-        #self.W_i = nn.Linear(d_h * 2, d_h) # for computing messages
-        self.W_o = nn.Linear(d_v + d_h, d_h) # for updating features
-        #self.W_o = nn.Linear(d_h, d_h)
-        self.W_h = nn.Linear(d_v + d_h, d_h) # for updating features
-
-    def forward(self, x, edge_index, edge_attr):
-        """
-        Forward pass of the MPNN layer.
-        Args:
-            x: Node features (N x d_v).
-            edge_index: Defines edges in the graph (2 x E).
-            edge_attr: Edge features (E x d_e).
-        """
-
-        if edge_attr.shape[0] * 2 == edge_index.shape[1]:  # Check for undirected graph duplication
-            edge_attr = torch.cat([edge_attr, edge_attr], dim=0)
-
-        # x = self.node_transform(x)
-        # edge_attr = self.edge_transform(edge_attr)
-
-        # Propagate calls message, aggregate, then update functions, and returns updated edge feature matrix
-        return self.propagate(edge_index, x=x, edge_attr=edge_attr)
-
-    def message(self, x_j, edge_attr):
-        """
-        Message function to compute messages from neighbors.
-        Args:
-            x_j: Node features of neighbors (E x d_v).
-            edge_attr: Edge features (E x d_e).
-        """
-        # Concatenate node features and edge features 
-        #print("Message function. X_j has dimensions ", x_j.shape, "and edge_attr has dimensions", edge_attr.shape)
-        m = torch.cat([x_j, edge_attr], dim=-1) # (E x (d_v + d_e))
-        #print("Concatenated message shape:", m.shape)
-        m = self.W_i(m) # (E x d_h)
-        return m
-
-    def update(self, aggr_out, x):
-        """
-        Update node features by combining aggregated messages with original node features
-        Args:
-            aggr_out: Aggregated messages (N x d_h)
-            x: Original node features (N x d_v)
-        """
-        # Concatenate node features and aggregated messages
-        out = torch.cat([x, aggr_out], dim=-1) # (N x (d_v + d_h))
-        #out = x + aggr_out
-        out = self.W_o(out) # (N x d_h)
-        return out
-
 class EdgeGCN(MessagePassing):
+    """ Defines a layer of a GCN that makes use of both node and edge features in constructing the message."""
     def __init__(self, in_channels, out_channels, edge_dim):
         super(EdgeGCN, self).__init__(aggr='add')
         self.lin_nodes = nn.Linear(in_channels, out_channels)
@@ -116,6 +57,7 @@ class EdgeGCN(MessagePassing):
         return self.lin(combined_features)
 
 class SimpleGraphEncoder(nn.Module):
+    """ Defines a graph encoder model using simple GCN layers."""
     def __init__(self, d_v, d_e, d_h, output_dim):
         print("Initializing GraphEncoder model with dimensions")
         print("Node features:", d_v)
@@ -142,6 +84,7 @@ class SimpleGraphEncoder(nn.Module):
         return x
 
 class GraphEncoder(nn.Module):
+    """ Defines a graph encoder model using GCN and EdgeGCN layers."""
     def __init__(self, d_v, d_e, d_h, output_dim):
         print("Initializing GraphEncoder model with dimensions (dv, de, dh):", d_v, d_e, d_h)
         super(GraphEncoder, self).__init__()
@@ -166,6 +109,7 @@ class GraphEncoder(nn.Module):
         return x
 
 def dataset_to_loaders(dataset, batch_size):
+    """ Takes dataset and converts it to train, validation, and test Pytorch DataLoaders."""
     train_idx, test_idx = train_test_split(range(len(dataset)), test_size=0.2, random_state=42)
     train_idx, val_idx = train_test_split(train_idx, test_size=0.25, random_state=42)  # 0.25 * 0.8 = 0.2
     print(f"Train: {len(train_idx)}, Val: {len(val_idx)}, Test: {len(test_idx)}")
@@ -181,10 +125,15 @@ def dataset_to_loaders(dataset, batch_size):
     return train_loader, val_loader, test_loader
 
 
-def train(dataset, output_path, train_loader, val_loader):
-    # Training hyperparameters
-    learning_rate = 1e-3
-    num_epochs = 150
+def train(dataset, output_path, train_loader, val_loader, hparams):
+    """ Trains a GraphEncoder model on the given dataset. Can substitute with SimpleGraphEncoder in model definition."""
+    # Training hyperparams
+    learning_rate = hparams['learning_rate']
+    num_epochs = hparams['num_epochs']
+    d_v = hparams['d_v']
+    d_e = hparams['d_e']
+    d_h = hparams['d_h']
+    output_dim = hparams['output_dim']
 
     # Compute positive samples weight
     labels = dataset.labels
@@ -218,6 +167,7 @@ def train(dataset, output_path, train_loader, val_loader):
     return model
 
 def training_loop(model, train_loader, optimizer, criterion, num_epochs, val_loader=None):
+    """ Trains the model on the training data for the specified number of epochs."""
     model.train()
     train_losses = []
     val_losses = []
@@ -307,12 +257,12 @@ def evaluate(model, test_loader):
     # Compute best threshold using Youden's J Statistic (TPR - FPR)
     best_threshold_roc = roc_thresholds[np.argmax(tpr - fpr)]
     preds = (probs > best_threshold_roc).astype(int)
-    print(f'Best threshold (ROC): {best_threshold_roc}')
+    print(f'Best threshold (ROC): {round(best_threshold_roc,2)}')
 
     # Compute F1 score
     f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-8)
     best_threshold_f1 = pr_thresholds[f1_scores.argmax()]
-    print(f'Best threshold (F1): {best_threshold_f1}')
+    print(f'Best threshold (F1): {round(best_threshold_f1,2)}')
 
     # Calculate accuracy
     accuracy = accuracy_score(true_labels, preds)
@@ -365,7 +315,8 @@ def evaluate(model, test_loader):
     plt.savefig('../output/mpnn_score_dist.png')
     plt.show()
 
-def predict(model, test_loader):
+def predict(model, test_loader, threshold=0.4):
+    """ Makes predictions on the test set (with no true labels) using the trained model."""
     model.eval()
     preds = []
     probs = []
@@ -376,10 +327,9 @@ def predict(model, test_loader):
             prob = torch.sigmoid(out).numpy().flatten()
             probs.append(prob)
     probs = np.concatenate(probs)
-    preds = (probs > 0.5).astype(int)
+    preds = (probs > threshold).astype(int)
 
     return probs, preds
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -393,40 +343,41 @@ def main():
     dataset = torch.load(args.input_path)
     print(f'Loaded dataset with {len(dataset)} samples.')
 
-    d_v = dataset[0].x.shape[1]
-    d_e = dataset[0].edge_attr.shape[1]
-    d_h = 32
-    output_dim = 1
+    # Define hyperparameters
+    hparams = {
+        'learning_rate': 1e-3,
+        'num_epochs': 150,
+        'd_h': 32,
+        'output_dim': 1,
+        'd_v': dataset[0].x.shape[1],
+        'd_e': dataset[0].edge_attr.shape[1],
+        'batch_size': 8
+    }
 
     # Either load model or train new model
-    batch_size = 8
-    if args.checkpoint_path:
-        model = GraphEncoder(d_v, d_e, d_h, output_dim=1)
+    if args.checkpoint_path: # Loads model from checkpoint and performs predictions
+        d_v, d_e, d_h, output_dim = hparams['d_v'], hparams['d_e'], hparams['d_h'], hparams['output_dim']
+        model = GraphEncoder(d_v, d_e, d_h, output_dim)
         model.load_state_dict(torch.load(args.checkpoint_path))
         print(f'Loaded model from {args.checkpoint_path}')
 
         # Make predictions on test set
         print("Making predictions on test set...")
-        test_loader = DataLoader(dataset, batch_size=batch_size)
+        test_loader = DataLoader(dataset, batch_size=hparams['batch_size'])
         probs, preds = predict(model, test_loader)
 
         # Save predictions
         df = pd.DataFrame({'SMILES':dataset.smiles, 'Probability': probs, 'Prediction': preds})
         df.to_csv(f'{args.output_path}/predictions.csv', index=False)
         print(f'Saved predictions to {args.output_path}/predictions.csv')
-
-    else:
+    
+    else: # Trains a new model and evaluates model based on true labels
         # Split dataset and convert to PyG DataLoaders
-        train_loader, val_loader, test_loader = dataset_to_loaders(dataset, batch_size=batch_size)
-
-        # Calculate weight for positive samples
-        labels = dataset.labels
-        pos_weight = (labels == 0).float().sum() / (labels == 1).float().sum()
-        print(f'Positive sample weight: {pos_weight}')
+        train_loader, val_loader, test_loader = dataset_to_loaders(dataset, batch_size=hparams['batch_size'])
 
         # Train and evaluate model
-        model = train(dataset, args.output_path, train_loader, val_loader)
-        evaluate(model, test_loader)
+        model = train(dataset, args.output_path, train_loader, val_loader, hparams)
+        evaluate(model, val_loader)
 
         # Save model checkpoint
         if args.save_path:
