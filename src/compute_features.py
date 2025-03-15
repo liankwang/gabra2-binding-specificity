@@ -6,6 +6,8 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import Descriptors
 
+from sklearn.preprocessing import StandardScaler
+
 class FeatureExtractor:
     def __init__(self, data):
         self.data = data
@@ -26,6 +28,7 @@ class FeatureExtractor:
             descriptors = []
             for name, func in Descriptors.descList:
                 descriptors.append(func(mol))
+
             return descriptors
         else:
             print('Calculating RDKit descriptors: NaN molecule!')

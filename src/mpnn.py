@@ -161,7 +161,7 @@ def train(dataset, output_path, train_loader, val_loader, hparams):
     plt.ylabel('Loss')
     plt.title('Training and Validation Loss Over Epochs')
     plt.legend()
-    plt.savefig(f'{output_path}/loss_curve.png')
+    plt.savefig(f'{output_path}/loss_curve.png',dpi=300)
     plt.show()
 
     return model
@@ -230,7 +230,21 @@ def plot_roc_curve(model, loader):
     plt.legend(loc='lower right')
     plt.show()
 
-def evaluate(model, test_loader):
+def extract_embeddings(model, data_loader):
+    model.eval()
+    embeddings = []
+    with torch.no_grad():
+        for batch in data_loader:
+            x, edge_index, edge_attr = batch.x, batch.edge_index, batch.edge_attr
+            x = model.gcn(x, edge_index)
+            x = F.relu(x)
+            x = model.conv1(x, edge_index, edge_attr)
+            x = global_mean_pool(x, batch.batch)
+            embeddings.append(x.numpy())
+    embeddings = np.concatenate(embeddings, axis=0)
+    return embeddings
+
+def evaluate(model, test_loader, output_path):
     model.eval()
     preds = []
     probs = []
@@ -288,20 +302,24 @@ def evaluate(model, test_loader):
     plt.subplot(1, 2, 1)
     plt.plot(fpr, tpr, label=f'ROC curve (area = {roc_auc:.2f})')
     plt.plot([0, 1], [0, 1], linestyle='--', color='gray')
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve')
+    plt.xlabel('False Positive Rate', fontsize=14)
+    plt.ylabel('True Positive Rate', fontsize=14)
+    plt.title('ROC Curve', fontsize=16)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
     plt.legend()
 
     # Plot Precision-Recall Curve
     plt.subplot(1, 2, 2)
     plt.plot(recalls, precisions, label='Precision-Recall curve')
-    plt.xlabel('Recall')
-    plt.ylabel('Precision')
-    plt.title('Precision-Recall Curve')
+    plt.xlabel('Recall', fontsize=14)
+    plt.ylabel('Precision', fontsize=14)
+    plt.title('Precision-Recall Curve', fontsize=16)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
     plt.legend()
 
-    plt.savefig('../output/mpnn_roc_curve.png')
+    plt.savefig(f'{output_path}/roc_curve_test.png', dpi=300)
     plt.show()
 
     # Plot Score Distribution Histogram
@@ -312,7 +330,7 @@ def evaluate(model, test_loader):
     plt.ylabel('Frequency')
     plt.title('Score Distribution')
     plt.legend()
-    plt.savefig('../output/mpnn_score_dist.png')
+    plt.savefig(f'{output_path}/score_dist.png', dpi=300)
     plt.show()
 
 def predict(model, test_loader, threshold=0.4):
@@ -370,6 +388,12 @@ def main():
         df = pd.DataFrame({'SMILES':dataset.smiles, 'Probability': probs, 'Prediction': preds})
         df.to_csv(f'{args.output_path}/predictions.csv', index=False)
         print(f'Saved predictions to {args.output_path}/predictions.csv')
+
+        # Save embeddings
+        print("Extracting embeddings...")
+        embeddings = extract_embeddings(model, test_loader)
+        np.save(f'{args.output_path}/embeddings.npy', embeddings)
+        print(f'Saved embeddings to {args.output_path}/embeddings.npy')
     
     else: # Trains a new model and evaluates model based on true labels
         # Split dataset and convert to PyG DataLoaders
@@ -377,11 +401,12 @@ def main():
 
         # Train and evaluate model
         model = train(dataset, args.output_path, train_loader, val_loader, hparams)
-        evaluate(model, val_loader)
+        evaluate(model, test_loader, args.output_path)
 
         # Save model checkpoint
         if args.save_path:
             torch.save(model.state_dict(), f'{args.save_path}/model.pt')
+
 
 if __name__ == "__main__":
     main()
