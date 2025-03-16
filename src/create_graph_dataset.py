@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import argparse
+import time
 
 from rdkit import Chem
 import torch
@@ -253,7 +254,10 @@ def main():
         dataset = MolGraphDataset(mols, smiles_list, labels)
     else:
         print("Creating dataset with no true labels.")
+        start_time = time.time()
         dataset = MolGraphDataset(mols, smiles_list)
+        end_time = time.time()
+        print(f"Dataset created in {end_time - start_time:.2f} seconds for {len(smiles_list)} molecules.")
 
     torch.save(dataset, f"{args.output_path}.pt")
     print(f"Saved dataset to {args.output_path}.pt")

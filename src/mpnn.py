@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
+import time
 
 import torch
 import torch.nn as nn
@@ -28,9 +29,9 @@ Arguments:
 --checkpoint_path (optional): Path to load a trained model checkpoint for predictions (should end in .pt)
 """
 
-random_seed = 42
-torch.manual_seed(random_seed)
-np.random.seed(random_seed)
+# random_seed = 42
+# torch.manual_seed(random_seed)
+# np.random.seed(random_seed)
 
 
 class EdgeGCN(MessagePassing):
@@ -57,7 +58,7 @@ class EdgeGCN(MessagePassing):
         return self.lin(combined_features)
 
 class SimpleGraphEncoder(nn.Module):
-    """ Defines a graph encoder model using simple GCN layers."""
+    """ Defines a graph encoder model using simple GCN layers. DEPRECATED"""
     def __init__(self, d_v, d_e, d_h, output_dim):
         print("Initializing GraphEncoder model with dimensions")
         print("Node features:", d_v)
@@ -381,8 +382,11 @@ def main():
 
         # Make predictions on test set
         print("Making predictions on test set...")
+        start_time = time.time()
         test_loader = DataLoader(dataset, batch_size=hparams['batch_size'])
         probs, preds = predict(model, test_loader)
+        end_time = time.time()
+        print(f'Predictions made in {round(end_time - start_time, 2)} seconds for {len(dataset)} samples.')
 
         # Save predictions
         df = pd.DataFrame({'SMILES':dataset.smiles, 'Probability': probs, 'Prediction': preds})
