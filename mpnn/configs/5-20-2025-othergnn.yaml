@@ -1,0 +1,21 @@
+run_name: "05-20-2025_graphencoder_iuphar_labeled2"
+
+model:
+  type: "GraphEncoder"
+  hparams:
+    learning_rate: 0.001
+    num_epochs: 150
+    d_h: 32
+    output_dim: 1
+    batch_size: 8
+  
+input:
+  data_path: "data/processed/iuphar_labeled2_reversed.pt"
+  checkpoint_path: null
+
+output:
+  # Training output
+  checkpoint_save_path: "output/checkpoints/{run_name}.pt"
+
+  # Evaluation output
+  output_path: "output/{run_name}"

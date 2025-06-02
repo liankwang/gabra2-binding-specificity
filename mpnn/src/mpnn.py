@@ -15,7 +15,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, r
 from torch_geometric.utils import add_self_loops
 #from torch.optim.lr_scheduler import StepLR
 
-from create_graph_dataset import MolGraphDataset
+from data.create_graph_dataset import MolGraphDataset
 
 """
 This script trains, evaluates, and makes predictions using a Graph Neural Network model on a molecular dataset.

@@ -1,4 +1,4 @@
-Compound,Smiles,Interaction
+compound,smiles,label
 gefitinib,COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1,0
 1-nonene,C=CCCCCCCC,0
 tetrachloroethylene,ClC(Cl)=C(Cl)Cl,0

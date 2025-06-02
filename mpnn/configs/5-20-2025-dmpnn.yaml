@@ -1,0 +1,23 @@
+run_name: "05-21-2025_dmpnn_chemprop_lipo"
+
+model:
+  type: "DMPNN"
+  task: "regression"
+  hparams:
+    learning_rate: 0.001
+    num_epochs: 150
+    d_h: 32
+    output_dim: 1
+    batch_size: 8
+    T: 3
+  
+input:
+  data_path: "data/processed/chemprop_lipo.pt"
+  checkpoint_path: null
+
+output:
+  # Training output
+  checkpoint_save_path: "output/checkpoints/{run_name}.pt"
+
+  # Evaluation output
+  output_path: "output/{run_name}"
